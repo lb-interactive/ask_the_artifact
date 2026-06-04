@@ -62,10 +62,16 @@ public class Server {
         }
 
         Javalin app = Javalin.create(config -> {
-            // CORS: allow the browser-based Lovable app to call this server.
-            // For a quick start this allows any origin. To lock it down, replace
-            // anyHost() with .allowHost("https://your-app.lovable.app").
-            config.bundledPlugins.enableCors(cors -> cors.addRule(it -> it.anyHost()));
+            // CORS: only allow YOUR Lovable frontend to call this server, so
+            // other sites can't use your backend (and your API credits).
+            //
+            // >>> REPLACE the URL below with your real Lovable app domain. <<<
+            // It's the address your published Lovable app loads at, e.g.
+            // "https://ask-the-artifact.lovable.app" (no trailing slash).
+            // If you use a custom domain too, add another addRule line for it.
+            config.bundledPlugins.enableCors(cors ->
+                cors.addRule(it -> it.allowHost("https://YOUR-APP.lovable.app"))
+            );
         });
 
         // Health check
