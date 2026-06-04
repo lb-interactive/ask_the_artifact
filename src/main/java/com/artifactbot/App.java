@@ -1,8 +1,8 @@
 package com.artifactbot;
 
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.Scanner;
 
 import com.anthropic.client.AnthropicClient;
@@ -13,9 +13,22 @@ import com.anthropic.models.messages.Model;
 
 public class App {
 
-    // Where the prompt files live, relative to where you run the app.
-    private static final Path CONFIG_DIR = Path.of("artifact-config");
-    private static final Path OBJECTS_DIR = CONFIG_DIR.resolve("objects");
+    // Config files are bundled INSIDE the jar (under src/main/resources/).
+    // We load them from the classpath, so the working directory the app runs
+    // from no longer matters -- this works identically locally and on Railway.
+    private static final String CONFIG_ROOT = "/artifact-config";
+
+    /**
+     * Reads a bundled resource file from the classpath and returns its text.
+     */
+    private static String readResource(String resourcePath) throws IOException {
+        try (InputStream in = App.class.getResourceAsStream(resourcePath)) {
+            if (in == null) {
+                throw new IOException("Bundled config file not found on classpath: " + resourcePath);
+            }
+            return new String(in.readAllBytes(), StandardCharsets.UTF_8);
+        }
+    }
 
     /**
      * Loads the reusable scaffolding prompt and injects the chosen object
@@ -24,8 +37,8 @@ public class App {
      * only which object file we read.
      */
     public static String buildSystemPrompt(String objectFileName, String mode) throws IOException {
-        String scaffolding = Files.readString(CONFIG_DIR.resolve("scaffolding.md"));
-        String objectConfig = Files.readString(OBJECTS_DIR.resolve(objectFileName));
+        String scaffolding = readResource(CONFIG_ROOT + "/scaffolding.md");
+        String objectConfig = readResource(CONFIG_ROOT + "/objects/" + objectFileName);
 
         return scaffolding
             .replace("{{MODE}}", mode)
