@@ -14,24 +14,17 @@ import io.javalin.Javalin;
 /**
  * Web server for Ask the Artifact.
  *
- * Exposes:
- *   GET  /health        -> simple "ok" so hosts/Lovable can check it's alive
- *   POST /chat          -> { "artifact": "...", "mode": "...", "message": "..." }
- *                          returns { "reply": "..." }
- *
- * Reuses App.buildSystemPrompt() so the web bot and the terminal bot share
- * the exact same prompt logic and config files.
- *
- * Run locally:   mvn compile exec:java
- * Build a jar:   mvn clean package   then   java -jar target/artifact-ai-1.0-SNAPSHOT.jar
+ *   GET  /health  -> "ok"
+ *   POST /chat     -> { "artifact": "...", "mode": "...", "message": "..." }
+ *                     returns 200 { "reply": "..." }  on success
+ *                     returns 400 { "error": "..." }  on bad input
+ *                     returns 500 { "error": "..." }  on server failure
  */
 public class Server {
 
     private static final String MODEL = "claude-haiku-4-5";
 
-    // SECURITY: only these exact artifact files may be loaded. Visitor/website
-    // input is checked against this allow-list, so untrusted input can never
-    // be used to read an arbitrary file path off the server.
+    // Only these exact artifact files may be loaded (prevents arbitrary file access).
     private static final Set<String> ALLOWED_ARTIFACTS = Set.of(
         "statue-of-david.md",
         "scanning-electron-microscope.md",
@@ -41,10 +34,7 @@ public class Server {
     private static final Set<String> ALLOWED_MODES = Set.of("KIDS", "ADULT");
 
     public static void main(String[] args) {
-        // Read the API key explicitly and TRIM it. Pasting a key into a host's
-        // env-var field often leaves a trailing newline/space, which is an
-        // illegal HTTP header character and crashes the request. Trimming makes
-        // the server robust to that. (fromEnv() would NOT trim.)
+        // Read and TRIM the API key (a stray newline in the env var breaks the HTTP header).
         String apiKey = System.getenv("ANTHROPIC_API_KEY");
         if (apiKey != null) {
             apiKey = apiKey.trim();
@@ -53,8 +43,7 @@ public class Server {
             .apiKey(apiKey)
             .build();
 
-        // Hosts (Railway/Render/Fly) tell your app which port to use via $PORT.
-        // Fall back to 7070 when running locally.
+        // Hosts provide the port via $PORT; fall back to 7070 locally.
         int port = 7070;
         String envPort = System.getenv("PORT");
         if (envPort != null && !envPort.isBlank()) {
@@ -62,23 +51,17 @@ public class Server {
         }
 
         Javalin app = Javalin.create(config -> {
-            // CORS: allow only YOUR Lovable frontend(s) to call this server.
+            // CORS: allow only your Lovable frontend(s).
             config.bundledPlugins.enableCors(cors -> {
-                // Published app:
                 cors.addRule(it -> it.allowHost("https://artifact-whispers-interactive.lovable.app"));
-                // Lovable in-editor preview (the editor runs on lovable.dev/lovableproject.com).
-                // These let the chat work while you test inside the Lovable editor.
-                cors.addRule(it -> it.allowHost("https://lovable.dev"));
                 cors.addRule(it -> it.allowHost("https://artifact-whispers-interactive.lovableproject.com"));
+                cors.addRule(it -> it.allowHost("https://lovable.dev"));
             });
         });
 
-        // Health check
         app.get("/health", ctx -> ctx.result("ok"));
 
-        // Main chat endpoint
         app.post("/chat", ctx -> {
-            // Parse the JSON body into a simple map.
             @SuppressWarnings("unchecked")
             Map<String, String> body = ctx.bodyAsClass(Map.class);
 
@@ -86,7 +69,7 @@ public class Server {
             String mode = body.getOrDefault("mode", "").toUpperCase();
             String message = body.getOrDefault("message", "");
 
-            // Validate inputs against the allow-lists.
+            // Validate. Each failure sets the status AND returns immediately.
             if (!ALLOWED_ARTIFACTS.contains(artifact)) {
                 ctx.status(400).json(Map.of("error", "Unknown artifact."));
                 return;
@@ -95,7 +78,7 @@ public class Server {
                 ctx.status(400).json(Map.of("error", "Mode must be KIDS or ADULT."));
                 return;
             }
-            if (message.isBlank()) {
+            if (message == null || message.isBlank()) {
                 ctx.status(400).json(Map.of("error", "Message is empty."));
                 return;
             }
@@ -113,11 +96,10 @@ public class Server {
                 Message response = client.messages().create(params);
                 String reply = response.content().get(0).text().get().text().trim();
 
+                // SUCCESS: 200 with the reply. (ctx.json defaults to status 200.)
                 ctx.json(Map.of("reply", reply));
 
             } catch (Exception e) {
-                // Print the real cause to the server logs so failures are diagnosable.
-                // (The visitor still only sees the friendly message.)
                 System.err.println("[/chat ERROR] " + e.getClass().getName() + ": " + e.getMessage());
                 e.printStackTrace();
                 ctx.status(500).json(Map.of("error", "The exhibit could not respond right now."));
