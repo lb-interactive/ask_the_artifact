@@ -70,7 +70,7 @@ public class Server {
             // "https://ask-the-artifact.lovable.app" (no trailing slash).
             // If you use a custom domain too, add another addRule line for it.
             config.bundledPlugins.enableCors(cors ->
-                cors.addRule(it -> it.allowHost("https://YOUR-APP.lovable.app"))
+                cors.addRule(it -> it.allowHost("https://artifact-whispers-interactive.lovable.app"))
             );
         });
 
