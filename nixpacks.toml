@@ -1,0 +1,11 @@
+# nixpacks.toml — tells Railway (and Nixpacks-based hosts) how to build & run.
+# Railway auto-detects most of this, but pinning it avoids surprises.
+
+[phases.setup]
+nixPkgs = ["maven", "jdk17"]
+
+[phases.build]
+cmds = ["mvn clean package -DskipTests"]
+
+[start]
+cmd = "java -jar target/artifact-ai-1.0-SNAPSHOT.jar"
