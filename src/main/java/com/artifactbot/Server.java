@@ -51,12 +51,10 @@ public class Server {
         }
 
         Javalin app = Javalin.create(config -> {
-            // CORS: allow only your Lovable frontend(s).
-            config.bundledPlugins.enableCors(cors -> {
-                cors.addRule(it -> it.allowHost("https://artifact-whispers-interactive.lovable.app"));
-                cors.addRule(it -> it.allowHost("https://artifact-whispers-interactive.lovableproject.com"));
-                cors.addRule(it -> it.allowHost("https://lovable.dev"));
-            });
+            // TEMPORARY: allow any origin to confirm CORS was the blocker and
+            // get unblocked. Once the chat works, narrow this back to your
+            // Lovable domain with .allowHost("https://...").
+            config.bundledPlugins.enableCors(cors -> cors.addRule(it -> it.anyHost()));
         });
 
         app.get("/health", ctx -> ctx.result("ok"));
@@ -109,4 +107,4 @@ public class Server {
         app.start(port);
         System.out.println("Ask the Artifact server running on port " + port);
     }
-}// rebuild 1780602197
+}
