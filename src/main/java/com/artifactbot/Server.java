@@ -1,5 +1,6 @@
 package com.artifactbot;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -61,11 +62,17 @@ public class Server {
 
         app.post("/chat", ctx -> {
             @SuppressWarnings("unchecked")
-            Map<String, String> body = ctx.bodyAsClass(Map.class);
+            Map<String, Object> body = ctx.bodyAsClass(Map.class);
 
-            String artifact = body.getOrDefault("artifact", "");
-            String mode = body.getOrDefault("mode", "").toUpperCase();
-            String message = body.getOrDefault("message", "");
+            String artifact = body.get("artifact") == null ? "" : body.get("artifact").toString();
+            String mode = body.get("mode") == null ? "" : body.get("mode").toString().toUpperCase();
+            String message = body.get("message") == null ? "" : body.get("message").toString();
+
+            // Optional conversation history: a list of {role, content} objects,
+            // where role is "user" or "assistant" (the artifact). Sending this
+            // lets the artifact follow the thread, so a bare "yes" continues
+            // what it just offered instead of confusing it.
+            Object historyObj = body.get("history");
 
             // Validate. Each failure sets the status AND returns immediately.
             if (!ALLOWED_ARTIFACTS.contains(artifact)) {
@@ -84,14 +91,33 @@ public class Server {
             try {
                 String systemPrompt = App.buildSystemPrompt(artifact, mode);
 
-                MessageCreateParams params = MessageCreateParams.builder()
+                MessageCreateParams.Builder builder = MessageCreateParams.builder()
                     .model(Model.of(MODEL))
                     .maxTokens(400L)
-                    .system(systemPrompt)
-                    .addUserMessage(message)
-                    .build();
+                    .system(systemPrompt);
 
-                Message response = client.messages().create(params);
+                // Replay prior turns (if any) in order, so the model has context.
+                if (historyObj instanceof List<?> history) {
+                    for (Object turnObj : history) {
+                        if (turnObj instanceof Map<?, ?> turn) {
+                            Object role = turn.get("role");
+                            Object content = turn.get("content");
+                            if (role == null || content == null) continue;
+                            String c = content.toString();
+                            if (c.isBlank()) continue;
+                            if ("assistant".equalsIgnoreCase(role.toString())) {
+                                builder.addAssistantMessage(c);
+                            } else {
+                                builder.addUserMessage(c);
+                            }
+                        }
+                    }
+                }
+
+                // Finally, the visitor's newest message.
+                builder.addUserMessage(message);
+
+                Message response = client.messages().create(builder.build());
                 String reply = response.content().get(0).text().get().text().trim();
 
                 // SUCCESS: 200 with the reply. (ctx.json defaults to status 200.)
