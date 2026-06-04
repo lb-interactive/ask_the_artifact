@@ -101,6 +101,10 @@ public class Server {
                 ctx.json(Map.of("reply", reply));
 
             } catch (Exception e) {
+                // Print the real cause to the server logs so failures are diagnosable.
+                // (The visitor still only sees the friendly message.)
+                System.err.println("[/chat ERROR] " + e.getClass().getName() + ": " + e.getMessage());
+                e.printStackTrace();
                 ctx.status(500).json(Map.of("error", "The exhibit could not respond right now."));
             }
         });
