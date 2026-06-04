@@ -41,7 +41,17 @@ public class Server {
     private static final Set<String> ALLOWED_MODES = Set.of("KIDS", "ADULT");
 
     public static void main(String[] args) {
-        AnthropicClient client = AnthropicOkHttpClient.fromEnv();
+        // Read the API key explicitly and TRIM it. Pasting a key into a host's
+        // env-var field often leaves a trailing newline/space, which is an
+        // illegal HTTP header character and crashes the request. Trimming makes
+        // the server robust to that. (fromEnv() would NOT trim.)
+        String apiKey = System.getenv("ANTHROPIC_API_KEY");
+        if (apiKey != null) {
+            apiKey = apiKey.trim();
+        }
+        AnthropicClient client = AnthropicOkHttpClient.builder()
+            .apiKey(apiKey)
+            .build();
 
         // Hosts (Railway/Render/Fly) tell your app which port to use via $PORT.
         // Fall back to 7070 when running locally.
