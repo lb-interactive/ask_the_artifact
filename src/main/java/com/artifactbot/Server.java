@@ -62,16 +62,15 @@ public class Server {
         }
 
         Javalin app = Javalin.create(config -> {
-            // CORS: only allow YOUR Lovable frontend to call this server, so
-            // other sites can't use your backend (and your API credits).
-            //
-            // >>> REPLACE the URL below with your real Lovable app domain. <<<
-            // It's the address your published Lovable app loads at, e.g.
-            // "https://ask-the-artifact.lovable.app" (no trailing slash).
-            // If you use a custom domain too, add another addRule line for it.
-            config.bundledPlugins.enableCors(cors ->
-                cors.addRule(it -> it.allowHost("https://artifact-whispers-interactive.lovable.app"))
-            );
+            // CORS: allow only YOUR Lovable frontend(s) to call this server.
+            config.bundledPlugins.enableCors(cors -> {
+                // Published app:
+                cors.addRule(it -> it.allowHost("https://artifact-whispers-interactive.lovable.app"));
+                // Lovable in-editor preview (the editor runs on lovable.dev/lovableproject.com).
+                // These let the chat work while you test inside the Lovable editor.
+                cors.addRule(it -> it.allowHost("https://lovable.dev"));
+                cors.addRule(it -> it.allowHost("https://artifact-whispers-interactive.lovableproject.com"));
+            });
         });
 
         // Health check
